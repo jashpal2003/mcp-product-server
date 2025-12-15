@@ -1,29 +1,10 @@
-import {
-  StdioServerTransport,
-} from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-
-// Minimal local Server implementation used when the SDK's stdio module does not export a Server class.
-// The implementation provides the small API surface used in this file: constructor, setRequestHandler, and connect.
-class Server {
-  private handlers = new Map<any, any>();
-  public name: string;
-  public version: string;
-
-  constructor(opts: { name: string; version: string }) {
-    this.name = opts.name;
-    this.version = opts.version;
-  }
-
-  setRequestHandler(_schema: any, handler: (req: any) => any) {
-    this.handlers.set(_schema, handler);
-  }
-
-  async connect(_transport: any) {
-    // No-op connection for the simple local server; the stdio transport is unused in this minimal stub.
-    return;
-  }
-}
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { 
+  CallToolRequestSchema, 
+  ListToolsRequestSchema,
+  Tool,
+} from "@modelcontextprotocol/sdk/types.js";
 
 // Mock customer data
 const customers: Record<string, { name: string; usage: number }> = {
@@ -31,45 +12,49 @@ const customers: Record<string, { name: string; usage: number }> = {
   "456": { name: "Globex Ltd", usage: 800 },
 };
 
-// Create server with proper capabilities
-const server = new Server({
-  name: "Product Analytics MCP",
-  version: "1.0.0",
-});
+// Create server instance (use the real SDK Server, not the stub)
+const server = new Server(
+  {
+    name: "Product Analytics MCP",
+    version: "1.0.0",
+  },
+  {} as any
+);
+
+// Define tools
+const tools: Tool[] = [
+  {
+    name: "getCustomerUsage",
+    description: "Get usage details for a customer by ID",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        customerId: {
+          type: "string",
+          description: "The customer ID (e.g., '123' or '456')",
+        },
+      },
+      required: ["customerId"],
+    },
+  },
+  {
+    name: "generateUsageReport",
+    description: "Generate a summary report of all customers and average usage",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+];
 
 // Handle tool listing
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: "getCustomerUsage",
-        description: "Get usage details for a customer by ID",
-        inputSchema: {
-          type: "object" as const,
-          properties: {
-            customerId: {
-              type: "string",
-              description: "The customer ID (e.g., '123' or '456')",
-            },
-          },
-          required: ["customerId"],
-        },
-      },
-      {
-        name: "generateUsageReport",
-        description: "Generate a summary report of all customers and average usage",
-        inputSchema: {
-          type: "object" as const,
-          properties: {},
-        },
-      },
-    ],
-  };
+  return { tools };
 });
 
 // Handle tool calls
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request;
+  const { name, arguments: args } = request.params;
 
   if (name === "getCustomerUsage") {
     const customerId = (args as any)?.customerId;
